@@ -1,0 +1,4 @@
+Generic errors wrapped in Snafu enums!
+
+Test with
+`cargo run` and `cargo run --no-default-features`
