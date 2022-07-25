@@ -38,12 +38,10 @@ impl Into<TestError> for DependencyError {
                     source: Box::new(self) as _,
                 };
                 // XXX I wish there was a better way to do
-                // this. I am wary of manually constructing a
-                // TestError::Generic{source: error_container} since I
-                // suspect it might interfere with Snafu's backtrace
-                // generating/passing machinery? Or possibly losing out
-                // on other helpful things Snafu might do in the error
-                // construction.
+                // this. We do not manually construct and return a 
+                // TestError::Generic{source: error_container, backtrace: None}
+                // since this interferes with Snafu's backtrace generating
+                // & passing machinery.
                 let r = Err(error_container);
                 let err:Result<(), TestError> = r.context(test_error::DepGeneric);
                 err.unwrap_err()

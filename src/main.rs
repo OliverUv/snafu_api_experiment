@@ -31,7 +31,6 @@ pub struct ErrorContainer {
 
 impl core::fmt::Display for ErrorContainer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // self.source.fmt(f)
         write!(f, "(ErrorContainer)")
     }
 }
