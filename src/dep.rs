@@ -7,12 +7,6 @@ extern crate alloc;
 #[cfg(not(feature = "std"))]
 use ::alloc::boxed::Box;
 
-// #[cfg(not(feature = "std"))]
-// extern crate core;
-
-// #[cfg(not(feature = "std"))]
-// use core::Result;
-
 // XXX Getting an LSP error saying test_error is an unresolved import.
 use crate::{ErrorContainer, TestError, test_error};
 

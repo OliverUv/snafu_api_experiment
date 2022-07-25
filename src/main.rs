@@ -69,6 +69,7 @@ impl Into<ErrorContainer> for OwnError {
 pub enum TestError {
     #[snafu(display("Generic error: {source}"))]
     Generic {
+        // XXX I wish I didn't have to do this
         source: ErrorContainer,
     },
 
@@ -92,7 +93,8 @@ pub enum TestError {
     },
 
     // // XXX Does not work in no_std, FromString in Snafu is only
-    // // impl'd in std
+    // // impl'd in std. This is not very high on my list of features
+    // // I want though, because I don't enjoy the `whatever!` api.
     //
     // #[snafu(whatever, display("Whatever-generic error: {message}"))]
     // WhateverGeneric {

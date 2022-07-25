@@ -1,4 +1,51 @@
 Generic errors wrapped in Snafu enums!
+With no_std support.
 
 Test with
 `cargo run` and `cargo run --no-default-features`
+
+Hello!
+
+I want to provide you with what I hope is a reasonable
+scenario which motivates why it'd be nice to have:
+
+1) Generics as sources (as in https://github.com/shepmaster/snafu/issues/123 )
+2) A method on context selectors that allows construction
+   of Snafus with sources (see `./src/dep.rs` L38)
+
+I'm working on a big project which consists of many crates. Right now
+I'm overhauling the old Failure-based error handling to use Snafu
+instead. Many of those crates must support no_std.
+
+My current problem looks something like this:
+
+Crate A is a library that provides some service. To provide the service
+it needs access to storage. How the storage is to be provided is
+specified in a trait in A. Depending on feature flags different types
+of storage are used. This might be because we're deploying to an
+environment that requires no_std, or for other reasons.
+
+We have several other crates (B, C, D) which provide this storage by
+impl'ing the trait from A. One might make RESTful requests to do it,
+one might store on disk, one might implement an in memory database,
+etc. We currently maintain these crates, but in the future they might
+be provided by others too.
+
+Most methods of the trait return `Result<_, StorageError>`. This
+way Crate A is ignorant of the specifics in B, C, D. We still need
+internal errors reported though, since the errors and (sometimes) their
+backtraces are invaluable for debugging.
+
+I have created a minimal reproduction of the code I've written to
+fill my requirements using Snafu. I have marked my pain points in
+comments with `XXX`.
+
+I can currently use generic source errors by way of the ErrorContainer
+in `./src/main.rs`, but I'm afraid that the undocumented export
+`snafu::Error` might change in patch/minor versions. I'd also very much
+like to have a less roundabout way of doing this.
+
+In the `./src/dep.rs` file you can see a mockup of how Crates B, C, D
+would handle errors. They define their own Snafu error enums, and at the
+API boundary convert those errors to the type defined by Crate A. If you
+know of a better way of converting the errors, please let me know!
