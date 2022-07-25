@@ -1,11 +1,9 @@
 use snafu::prelude::*;
-use snafu::Error as CoreishError;
-
-#[cfg(not(feature = "std"))]
-extern crate alloc;
 
 #[cfg(not(feature = "std"))]
 use ::alloc::boxed::Box;
+#[cfg(not(feature = "std"))]
+use ::alloc::string::String;
 
 // XXX Getting an LSP error saying test_error is an unresolved import.
 use crate::{ErrorContainer, TestError, test_error};
@@ -16,6 +14,7 @@ enum DependencyError {
     #[snafu(display("could not reticulate: {item}"))]
     Reticulate {
         item: String,
+        backtrace: snafu::Backtrace,
     },
 
     #[cfg(feature = "std")]
@@ -23,6 +22,7 @@ enum DependencyError {
     IO {
         message: String,
         source: std::io::Error,
+        backtrace: snafu::Backtrace,
     },
 }
 
@@ -35,14 +35,20 @@ impl Into<TestError> for DependencyError {
                 let error_container = ErrorContainer {
                     source: Box::new(self) as _,
                 };
-                // XXX I wish there was a better way to do this
+                // XXX I wish there was a better way to do
+                // this. I am wary of manually constructing a
+                // TestError::Generic{source: error_container} since I
+                // suspect it might interfere with Snafu's backtrace
+                // generating/passing machinery? Or possibly losing out
+                // on other helpful things Snafu might do in the error
+                // construction.
                 let r = Err(error_container);
-                let err:Result<(), TestError> = r.context(test_error::Generic);
+                let err:Result<(), TestError> = r.context(test_error::DepGeneric);
                 err.unwrap_err()
             },
 
             #[cfg(feature = "std")]
-            DE::IO{message, source} => {
+            DE::IO{message, source, ..} => {
                 let r = Err(source);
                 let err:Result<(), TestError> = r.context(test_error::DepIO{ message });
                 err.unwrap_err()

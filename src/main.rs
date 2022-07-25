@@ -1,4 +1,15 @@
-use snafu::prelude::*;
+#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(feature = "std"), feature(default_alloc_error_handler))]
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
+#[cfg(not(feature = "std"))]
+use ::alloc::boxed::Box;
+#[cfg(not(feature = "std"))]
+use ::alloc::string::String;
+#[cfg(not(feature = "std"))]
+use ::alloc::string::ToString;
 
 // Must use this instead of std::error::Error to support no_std.
 //
@@ -6,29 +17,22 @@ use snafu::prelude::*;
 // a trait very similar to std error, and also almost identical to the
 // traits in the core_error and core2 crates.
 pub use snafu::Error as CoreishError;
+use snafu::prelude::*;
+
+use libc_print::libc_println;
 
 mod dep;
-use dep::*;
+use dep::call_dep;
 
-#[cfg(not(feature = "std"))]
-extern crate alloc;
-
-#[cfg(not(feature = "std"))]
-use ::alloc::boxed::Box;
-
+#[derive(Debug)]
 pub struct ErrorContainer {
     source: Box<dyn CoreishError + Send + Sync + 'static>,
 }
 
-impl core::fmt::Debug for ErrorContainer {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.source.fmt(f)
-    }
-}
-
 impl core::fmt::Display for ErrorContainer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.source.fmt(f)
+        // self.source.fmt(f)
+        write!(f, "(ErrorContainer)")
     }
 }
 
@@ -44,7 +48,7 @@ pub struct OwnError {
 }
 
 impl ::core::fmt::Display for OwnError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.message)
     }
 }
@@ -67,29 +71,30 @@ impl Into<ErrorContainer> for OwnError {
 #[snafu(module)]
 #[snafu(context(suffix(false)))]
 pub enum TestError {
-    #[snafu(display("Generic error: {source}"))]
+    #[snafu(display("Generic error"))]
     Generic {
         // XXX I wish I didn't have to do this
         source: ErrorContainer,
     },
 
-    #[snafu(display("Specific error: {message}, from: {source}"))]
+    #[snafu(display("Specific error: {message}"))]
     Specific {
         message: String,
         source: OwnError,
     },
 
-    #[snafu(display("Dependency error: {message}, from: {source}"))]
+    #[snafu(display("Generic dependency error"))]
     DepGeneric {
-        message: String,
         source: ErrorContainer,
+        backtrace: Option<snafu::Backtrace>,
     },
 
     #[cfg(feature = "std")]
-    #[snafu(display("Dependency error: {message}, from: {source}"))]
+    #[snafu(display("Dependency IO error: {message}"))]
     DepIO {
         message: String,
         source: std::io::Error,
+        backtrace: Option<snafu::Backtrace>,
     },
 
     // // XXX Does not work in no_std, FromString in Snafu is only
@@ -105,24 +110,47 @@ pub enum TestError {
 
 }
 
+fn report_error<T>(err: Result<T, TestError>) {
+    let err = match err {
+        Ok(_) => return,
+        Err(e) => e,
+    };
+
+    snafu::ErrorCompat::iter_chain(&err).for_each(|e| {
+        libc_println!("{}", e);
+    });
+
+    let _ = {
+        let bt = snafu::ErrorCompat::backtrace(&err);
+        if let Some(bt) = bt {
+            libc_println!("BACKTRACE: {:?}", bt);
+        }
+    };
+}
+
 fn main() {
 
-    let own_err = OwnError { message: "reported genericly".to_string() };
+    let own_err = OwnError { message: "OwnError reported genericly".to_string() };
     let own_res:Result<(), OwnError> = Result::Err(own_err);
-    let generic_err = own_res.map_err(|e| e.into()).context(test_error::Generic);
-    println!("G: {}", generic_err.unwrap_err());
+    let generic_err = own_res
+        .map_err(|e| e.into())
+        .context(test_error::Generic);
+    libc_println!("\nGeneric:");
+    report_error(generic_err);
 
     // let own_err = OwnError { message: "reported via whatever".to_string() };
     // let own_res:Result<(), OwnError> = Result::Err(own_err);
     // let whatever_generic_err:Result<(), TestError> = own_res.whatever_context("whatever generic message");
-    // println!("W: {}", whatever_generic_err.unwrap_err());
+    // libc_println!("W: {}", whatever_generic_err.unwrap_err());
 
-    let own_err = OwnError { message: "reported specifically".to_string() };
+    let own_err = OwnError { message: "OwnError reported specifically".to_string() };
     let own_res:Result<(), OwnError> = Result::Err(own_err);
     let specific_err = own_res.context(test_error::Specific{message: "specific message" });
-    println!("S: {}", specific_err.unwrap_err());
+    libc_println!("\nSpecific:");
+    report_error(specific_err);
 
     let dep_res = call_dep();
-    println!("D: {}", dep_res.unwrap_err());
+    libc_println!("\nDependent:");
+    report_error(dep_res);
 
 }

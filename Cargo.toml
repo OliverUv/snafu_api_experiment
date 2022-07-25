@@ -11,4 +11,10 @@ default = [ "std" ]
 std = [ "snafu/std" ]
 
 [dependencies]
-snafu = { version="^0.7", default-features=false }
+libc-print = "0.1.19"
+
+[dependencies.snafu]
+# version="^0.7"
+path="../../Projects/snafu"
+default-features=false
+features=["backtraces", "backtraces-impl-backtrace-crate"]
