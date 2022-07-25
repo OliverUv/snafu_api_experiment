@@ -14,6 +14,7 @@ enum DependencyError {
     #[snafu(display("could not reticulate: {item}"))]
     Reticulate {
         item: String,
+        // Capture a backtrace
         backtrace: snafu::Backtrace,
     },
 
@@ -22,6 +23,7 @@ enum DependencyError {
     IO {
         message: String,
         source: std::io::Error,
+        // Capture a backtrace since io::Error does not
         backtrace: snafu::Backtrace,
     },
 }

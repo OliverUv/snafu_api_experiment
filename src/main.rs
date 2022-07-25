@@ -75,12 +75,14 @@ pub enum TestError {
     Generic {
         // XXX I wish I didn't have to do this
         source: ErrorContainer,
+        backtrace: Option<snafu::Backtrace>,
     },
 
     #[snafu(display("Specific error: {message}"))]
     Specific {
         message: String,
         source: OwnError,
+        backtrace: Option<snafu::Backtrace>,
     },
 
     #[snafu(display("Generic dependency error"))]
