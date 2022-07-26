@@ -6,12 +6,12 @@ use ::alloc::boxed::Box;
 use ::alloc::string::String;
 
 // XXX Getting an LSP error saying test_error is an unresolved import.
-use crate::{ErrorContainer, TestError, test_error};
+use crate::{TestError, test_error, BoxedErr};
 
 #[derive(Debug, Snafu)]
 enum DependencyError {
 
-    #[snafu(display("could not reticulate: {item}"))]
+    #[snafu(display("ERROR[P3_SN_DEP_1] could not reticulate: {item}"))]
     Reticulate {
         item: String,
         // Capture a backtrace
@@ -19,7 +19,7 @@ enum DependencyError {
     },
 
     #[cfg(feature = "std")]
-    #[snafu(display("io error: {message}, from: {source}"))]
+    #[snafu(display("ERROR[P3_SN_DEP_2] io error: {message}, from: {source}"))]
     IO {
         message: String,
         source: std::io::Error,
@@ -33,24 +33,25 @@ impl Into<TestError> for DependencyError {
         use DependencyError as DE;
         match self {
 
+            // XXX I wish there was a better way to do
+            // this. We do not manually construct and return a 
+            // TestError::Generic{source: error_container, backtrace: None}
+            // since this interferes with Snafu's backtrace generating
+            // & passing machinery.
+
             DE::Reticulate{..} => {
-                let error_container = ErrorContainer {
-                    source: Box::new(self) as _,
-                };
-                // XXX I wish there was a better way to do
-                // this. We do not manually construct and return a 
-                // TestError::Generic{source: error_container, backtrace: None}
-                // since this interferes with Snafu's backtrace generating
-                // & passing machinery.
-                let r = Err(error_container);
-                let err:Result<(), TestError> = r.context(test_error::DepGeneric);
+                // Either the `let r` or `let err` lines must be given
+                // a type annotation
+                let r:Result<(), BoxedErr> = Err(Box::new(self) as _);
+                let err = r.context(test_error::DepGeneric);
                 err.unwrap_err()
             },
 
             #[cfg(feature = "std")]
             DE::IO{message, source, ..} => {
                 let r = Err(source);
-                let err:Result<(), TestError> = r.context(test_error::DepIO{ message });
+                let err:Result<(), TestError> =
+                    r.context(test_error::DepIO{ message });
                 err.unwrap_err()
             },
 
@@ -59,6 +60,10 @@ impl Into<TestError> for DependencyError {
 }
 
 pub fn call_dep() -> Result<(), TestError> {
+    // We could have the dependencies just return their own
+    // Error types and call `.map_err(|e| Box::new(e) as _)`
+    // on them, but then they would all turn into generic errors
+    // which I don't think we want.
     inner().map_err(|e| e.into())
 }
 
@@ -72,6 +77,5 @@ fn inner() -> Result<(), DependencyError> {
 
 #[cfg(not(feature = "std"))]
 fn inner() -> Result<(), DependencyError> {
-    ensure!(false, ReticulateSnafu{ item: "splines" });
-    Ok(())
+    return Err(ReticulateSnafu{ item: "splines" }.build());
 }
