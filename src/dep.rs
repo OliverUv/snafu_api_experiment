@@ -6,7 +6,7 @@ use ::alloc::boxed::Box;
 use ::alloc::string::String;
 
 // XXX Getting an LSP error saying test_error is an unresolved import.
-use crate::{TestError, test_error, BoxedErr};
+use crate::{TestError, test_error, BoxedError};
 
 #[derive(Debug, Snafu)]
 enum DependencyError {
@@ -42,7 +42,7 @@ impl Into<TestError> for DependencyError {
             DE::Reticulate{..} => {
                 // Either the `let r` or `let err` lines must be given
                 // a type annotation
-                let r:Result<(), BoxedErr> = Err(Box::new(self) as _);
+                let r:Result<(), BoxedError> = Err(Box::new(self) as _);
                 let err = r.context(test_error::DepGeneric);
                 err.unwrap_err()
             },

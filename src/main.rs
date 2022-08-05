@@ -5,26 +5,31 @@
 extern crate alloc;
 
 #[cfg(not(feature = "std"))]
-use ::alloc::boxed::Box;
+use alloc::boxed::Box;
 #[cfg(not(feature = "std"))]
-use ::alloc::string::String;
+use alloc::string::String;
 #[cfg(not(feature = "std"))]
-use ::alloc::string::ToString;
+use alloc::string::ToString;
+
+#[cfg(not(feature = "std"))]
+use alloc::borrow::Cow;
+#[cfg(feature = "std")]
+use std::borrow::Cow;
 
 // Must use this instead of std::error::Error to support no_std.
 //
 // This is a reexport of std::error::Error on std, and on no_std it is
 // a trait very similar to std error, and also almost identical to the
 // traits in the core_error and core2 crates.
-pub use snafu::Error as CoreishError;
 use snafu::prelude::*;
 
 use libc_print::libc_println;
 
+mod util;
+pub use util::*;
+
 mod dep;
 use dep::call_dep;
-
-pub type BoxedErr = Box<dyn CoreishError + Send + Sync + 'static>;
 
 #[derive(Debug)]
 pub struct NonSnafuError {
@@ -40,7 +45,7 @@ impl ::core::fmt::Display for NonSnafuError {
 // Snafu requires this specific trait to be implemented. Any home-rolled
 // Core-ish Error traits do not work, neither does simply impl:ing
 // Display and Debug.
-impl CoreishError for NonSnafuError {}
+impl Error for NonSnafuError {}
 
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)))]
@@ -49,7 +54,7 @@ impl CoreishError for NonSnafuError {}
 pub enum TestError {
     #[snafu(display("ERROR[P3_SN_1] Generic error"))]
     Generic {
-        source: BoxedErr,
+        source: BoxedError,
         backtrace: Option<snafu::Backtrace>,
     },
 
@@ -62,7 +67,7 @@ pub enum TestError {
 
     #[snafu(display("ERROR[P3_SN_3] Generic dependency error"))]
     DepGeneric {
-        source: BoxedErr,
+        source: BoxedError,
         backtrace: Option<snafu::Backtrace>,
     },
 
@@ -71,6 +76,14 @@ pub enum TestError {
     DepIO {
         message: String,
         source: std::io::Error,
+        backtrace: Option<snafu::Backtrace>,
+    },
+
+    #[snafu(display("ERROR[P3_SN_5] Error with optionals: {message}"))]
+    OptTest {
+        source: OptionalBoxedError,
+        // message: Option<Cow<'static, str>>,
+        message: OptionalMessage,
         backtrace: Option<snafu::Backtrace>,
     },
 }
@@ -112,5 +125,52 @@ fn main() {
     let dep_res = call_dep();
     libc_println!("\nError from dependency:");
     report_error(dep_res);
+
+    // OptionalBoxedError source and OptionalMessage message ===============
+
+    // Error, No Message
+    let non_s_err = NonSnafuError { message: "NonSnafuError reported specifically".to_string() };
+    let non_s_res:Result<(), NonSnafuError> = Result::Err(non_s_err);
+
+    let test_opt_err = non_s_res
+        .opt_box_err()
+        .context(test_error::OptTest{message: OptionalMessage::none()});
+
+    libc_println!("\nOptional Test Error E, NM:");
+    report_error(test_opt_err);
+
+    // Error, Message
+    let non_s_err = NonSnafuError { message: "NonSnafuError reported specifically".to_string() };
+    let non_s_res:Result<(), NonSnafuError> = Result::Err(non_s_err);
+
+    let test_opt_err = non_s_res
+        .opt_box_err()
+        .context(test_error::OptTest{message: "Hello there"});
+
+    libc_println!("\nOptional Test Error E, NM:");
+    report_error(test_opt_err);
+
+    // No Error, No Message < Degenerate use case
+
+    // No Error, Manual No Message
+    let test_opt_err = err_opt_none!(test_error::OptTest{ message: OptionalMessage::none()});
+
+    let test_opt_res = Result::<(), TestError>::Err(test_opt_err);
+    libc_println!("\nOptional Test Error NE, NM:");
+    report_error(test_opt_res);
+
+    // No Error, Manual Message
+    let test_opt_err = err_opt_none!(test_error::OptTest{ message: "asdf"});
+
+    let test_opt_res = Result::<(), TestError>::Err(test_opt_err);
+    libc_println!("\nOptional Test Error NE, MM:");
+    report_error(test_opt_res);
+
+    // No Error, Automated Message
+    let test_opt_err = err_opt_none!(test_error::OptTest, "my message");
+
+    let test_opt_res = Result::<(), TestError>::Err(test_opt_err);
+    libc_println!("\nOptional Test Error NE, AM:");
+    report_error(test_opt_res);
 
 }

@@ -15,6 +15,6 @@ libc-print = "0.1.19"
 
 [dependencies.snafu]
 # version="^0.7"
-path="../../snafu"
+path="../../../Projects/snafu"
 default-features=false
 features=["backtraces", "backtraces-impl-backtrace-crate"]
